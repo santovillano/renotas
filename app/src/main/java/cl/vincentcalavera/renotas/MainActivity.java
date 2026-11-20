@@ -87,6 +87,42 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public String bubbleState() {
+            return bubbleStateNow();
+        }
+
+        @JavascriptInterface
+        public void setBubble(final boolean on) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    getSharedPreferences("renotas_app", Context.MODE_PRIVATE)
+                            .edit().putBoolean("bubbleEnabled", on).apply();
+                    if (!on) {
+                        BubbleService.stop(MainActivity.this);
+                    } else if (Settings.canDrawOverlays(MainActivity.this)) {
+                        BubbleService.start(MainActivity.this);
+                    } else {
+                        try {
+                            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:" + getPackageName())));
+                        } catch (Exception ignored) {
+                        }
+                    }
+                    bubbleStateToJs();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void setPending(int n, int over) {
+            SharedPreferences sp = getSharedPreferences("renotas_app", Context.MODE_PRIVATE);
+            if (sp.getInt("pendN", -1) == n && sp.getInt("pendOver", -1) == over) return;
+            sp.edit().putInt("pendN", n).putInt("pendOver", over).apply();
+            BubbleService.refresh(getApplicationContext());
+        }
+
+        @JavascriptInterface
         public boolean hasSpeech() {
             return SpeechRecognizer.isRecognitionAvailable(MainActivity.this);
         }
@@ -119,6 +155,37 @@ public class MainActivity extends Activity {
                     state("idle");
                 }
             });
+        }
+    }
+
+    private String bubbleStateNow() {
+        boolean on = getSharedPreferences("renotas_app", Context.MODE_PRIVATE)
+                .getBoolean("bubbleEnabled", false);
+        if (!on) return "off";
+        return Settings.canDrawOverlays(this) ? "on" : "needperm";
+    }
+
+    private void bubbleStateToJs() {
+        js("window.onBubbleState&&window.onBubbleState('" + bubbleStateNow() + "')");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        boolean on = getSharedPreferences("renotas_app", Context.MODE_PRIVATE)
+                .getBoolean("bubbleEnabled", false);
+        if (on && Settings.canDrawOverlays(this) && !BubbleService.running) {
+            BubbleService.start(this);
+        }
+        bubbleStateToJs();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getBooleanExtra("open_pending", false)) {
+            js("window.openPending&&window.openPending()");
         }
     }
 

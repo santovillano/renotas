@@ -10,6 +10,11 @@ public class BootReceiver extends BroadcastReceiver {
     public void onReceive(Context ctx, Intent intent) {
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             Reminders.restore(ctx);
+            boolean on = ctx.getSharedPreferences("renotas_app", Context.MODE_PRIVATE)
+                    .getBoolean("bubbleEnabled", false);
+            if (on && android.provider.Settings.canDrawOverlays(ctx)) {
+                BubbleService.start(ctx);
+            }
         }
     }
 }

@@ -27,14 +27,17 @@ Necesitas JDK 17 y el Android SDK (variable `ANDROID_HOME`):
   aunque la app esté cerrada). Se reprograman al reiniciar el teléfono.
 - Dictado por voz con el reconocimiento de voz de Android (botón del micrófono en Ideas).
 - Icono de Renotas como ícono de la app.
+- Campana flotante sobre otras apps y la pantalla de inicio, con el número de pendientes
+  (se activa desde la tarjeta "Campana flotante" en Inicio; pide el permiso
+  "Mostrar sobre otras apps"). Se arrastra y se pega a un lado; al tocarla abre Renotas.
 
 ## Permisos que va a pedir
 
 - Notificaciones (Android 13 o superior).
 - Micrófono, la primera vez que uses el dictado.
+- Mostrar sobre otras apps, para la campana flotante.
 - Alarmas exactas (Android 12 o superior), para que el aviso llegue justo a la hora.
 
 ## Pendiente para una próxima versión
 
-- La burbuja flotante sobre otras apps (hoy vive solo dentro de la app).
 - Para publicar en Google Play hay que firmar el APK con tu propia llave.

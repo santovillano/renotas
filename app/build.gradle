@@ -1,0 +1,36 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'cl.vincentcalavera.renotas'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'cl.vincentcalavera.renotas'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('renotas-debug.keystore')
+            storePassword 'android'
+            keyAlias 'renotas'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

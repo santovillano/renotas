@@ -73,7 +73,7 @@ h1{font-family:var(--font-display);font-weight:800;font-size:26px;line-height:1.
 .add{display:flex;flex-wrap:wrap;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:18px}
 .add .grow{flex:1 1 100%;min-width:0}
 .add .half{flex:1 1 130px;min-width:0}
-input[type=text],input[type=date],input[type=time],select,textarea{
+input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{
   width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:16px;min-height:44px}
 textarea{resize:vertical;min-height:96px}
 input::placeholder,textarea::placeholder{color:var(--muted)}
@@ -177,6 +177,20 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
 .fl-sub{display:block;font-size:12.5px;color:var(--muted)}
 .fl-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
 .fl-foot select{width:auto;min-height:36px;padding:4px 8px;font-size:14px}
+/* Compras por lugar */
+.place-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.place-head h2{margin:0;font-family:var(--font-display);font-weight:800;font-size:22px;min-width:0;overflow-wrap:anywhere}
+.add.shopform{display:grid;grid-template-columns:76px 108px minmax(0,1fr);gap:8px;align-items:end}
+.sf-col{display:flex;flex-direction:column;gap:4px;min-width:0}
+.sf-col label{font-size:12.5px;font-weight:700;color:var(--muted);line-height:1.2}
+.sf-col input,.sf-col select{padding-inline:10px}
+.shopform .plus{grid-column:1/-1;justify-self:center;width:56px;height:56px;border-radius:50%;border:0;background:linear-gradient(135deg,var(--g1),var(--g2));
+  color:#fff;display:grid;place-items:center;cursor:pointer;padding:0;box-shadow:0 6px 14px rgba(108,77,246,.3);margin-top:4px}
+.plus svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+.movebox{list-style:none;background:var(--surface2);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chipbtn{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:99px;padding:6px 12px;font-weight:700;font-size:13px;min-height:36px;cursor:pointer}
+.placeadd{margin-top:16px}
 /* Pantalla de inicio animada */
 #splash{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;
   background:linear-gradient(160deg,#4F34D8 0%,#A23DB0 55%,#EC4A7A 100%);cursor:pointer;
@@ -262,13 +276,28 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
   </section>
 
   <section class="panel" id="p-compras" aria-labelledby="t-compras" hidden>
-    <form class="add" id="f-shop" autocomplete="off">
-      <div class="grow"><input type="text" id="s-text" placeholder="Producto" aria-label="Producto" maxlength="80"></div>
-      <div class="half"><input type="text" id="s-qty" placeholder="Cantidad (ej. 2 kg)" aria-label="Cantidad" maxlength="20"></div>
-      <div class="half"><select id="s-cat" aria-label="Sección del supermercado"></select></div>
-      <button class="btn" type="submit">Agregar a la lista</button>
-    </form>
-    <div id="l-shop"></div>
+    <div id="shop-menu">
+      <h2 class="grp">¿Dónde vas a comprar?</h2>
+      <div class="tiles" id="l-places"></div>
+      <form class="add placeadd" id="f-place" autocomplete="off">
+        <div class="grow"><input type="text" id="p-name" placeholder="Otro lugar (ej. Panadería, Ferretería)" aria-label="Nombre del lugar" maxlength="24"></div>
+        <button class="btn" type="submit">Agregar lugar</button>
+      </form>
+    </div>
+    <div id="shop-place" hidden>
+      <div class="place-head">
+        <button class="btn ghost small" type="button" id="place-back">&lsaquo; Lugares</button>
+        <h2 id="place-title"></h2>
+      </div>
+      <form class="add shopform" id="f-shop" autocomplete="off">
+        <div class="sf-col"><label for="s-qty">Cantidad</label><input type="number" inputmode="decimal" min="0" step="any" id="s-qty" value="1"></div>
+        <div class="sf-col"><label for="s-unit">Unidad / kilo / litro</label>
+          <select id="s-unit"><option value="unidad">Unidad</option><option value="kilo">Kilo</option><option value="litro">Litro</option></select></div>
+        <div class="sf-col"><label for="s-text">Qué comprará</label><input type="text" id="s-text" maxlength="80" placeholder="Ej. paltas"></div>
+        <button class="plus" type="submit" aria-label="Agregar a la lista"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      </form>
+      <div id="l-shop"></div>
+    </div>
   </section>
 
   <section class="panel" id="p-notas" aria-labelledby="t-notas" hidden>
@@ -354,7 +383,7 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
 (function(){
   var KEY='mis-pendientes-v1';
   var TABS=['inicio','recordatorios','tareas','compras','notas','ideas'];
-  var CATS=['Frutas y verduras','Panadería','Lácteos','Carnes','Despensa','Limpieza','Otros'];
+  var PLACES=['Supermercado','Almacén','Verdulería','Carnicería','Feria'];
   var CHK='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10.5l3.5 3.5L15 6.5"/></svg>';
   var TRASH='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>';
   var PEN='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16.5 4.5l3 3L8 19z"/></svg>';
@@ -369,7 +398,7 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
   function short(s){s=String(s||'');return s.length>32?s.slice(0,30)+'…':s}
 
   function seed(){
-    return {example:true,
+    return {example:true,places:PLACES.slice(),
       ideas:[
         {id:uid(),text:'Pintar la pieza de un color más claro y cambiar las cortinas.',at:new Date(Date.now()-5*36e5).toISOString()},
         {id:uid(),text:'Armar un estante flotante para las herramientas del taller.',at:new Date(Date.now()-26*36e5).toISOString()}
@@ -389,22 +418,29 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
         {id:uid(),text:'Lavar el auto',prio:'baja',done:true}
       ],
       shop:[
-        {id:uid(),text:'Paltas',qty:'4 un',cat:'Frutas y verduras',done:false},
-        {id:uid(),text:'Tomates',qty:'1 kg',cat:'Frutas y verduras',done:true},
-        {id:uid(),text:'Marraquetas',qty:'6 un',cat:'Panadería',done:false},
-        {id:uid(),text:'Leche',qty:'2 l',cat:'Lácteos',done:false},
-        {id:uid(),text:'Queso mantecoso',qty:'300 g',cat:'Lácteos',done:false},
-        {id:uid(),text:'Pollo',qty:'1 kg',cat:'Carnes',done:false},
-        {id:uid(),text:'Arroz',qty:'1 kg',cat:'Despensa',done:false},
-        {id:uid(),text:'Detergente',qty:'',cat:'Limpieza',done:false}
+        {id:uid(),text:'Paltas',qty:'4',unit:'unidad',place:'Verdulería',done:false},
+        {id:uid(),text:'Tomates',qty:'1',unit:'kilo',place:'Verdulería',done:true},
+        {id:uid(),text:'Marraquetas',qty:'6',unit:'unidad',place:'Almacén',done:false},
+        {id:uid(),text:'Arroz',qty:'1',unit:'kilo',place:'Almacén',done:false},
+        {id:uid(),text:'Leche',qty:'2',unit:'litro',place:'Supermercado',done:false},
+        {id:uid(),text:'Detergente',qty:'1',unit:'unidad',place:'Supermercado',done:false},
+        {id:uid(),text:'Pollo',qty:'1',unit:'kilo',place:'Carnicería',done:false}
       ],
       notes:[
         {id:uid(),title:'Medidas del living',body:'Pared norte: 3,20 m\nVentana: 1,40 m de ancho\nAltura del cielo: 2,45 m'},
         {id:uid(),title:'Ideas para el fin de semana',body:'Feria de la comuna el sábado en la mañana.\nAsado con la familia si el clima acompaña.'}
       ]};
   }
+  function migrate(s){
+    if(!s.places||!s.places.length)s.places=PLACES.slice();
+    var map={'Frutas y verduras':'Verdulería','Carnes':'Carnicería','Panadería':'Almacén','Despensa':'Almacén'};
+    s.shop.forEach(function(x){
+      if(!x.place){x.place=map[x.cat]||'Supermercado';delete x.cat}
+      if(s.places.indexOf(x.place)<0)s.places.push(x.place);
+    });
+  }
   function load(){
-    try{var r=localStorage.getItem(KEY);if(r){var s=JSON.parse(r);if(s&&s.rem&&s.tasks&&s.shop&&s.notes){if(!s.ideas)s.ideas=s.example?seed().ideas:[];return s}}}catch(e){}
+    try{var r=localStorage.getItem(KEY);if(r){var s=JSON.parse(r);if(s&&s.rem&&s.tasks&&s.shop&&s.notes){if(!s.ideas)s.ideas=s.example?seed().ideas:[];migrate(s);return s}}}catch(e){}
     return seed();
   }
   function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}syncNative()}
@@ -498,22 +534,50 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
   }
 
   /* ---------- Compras ---------- */
-  function shopItem(s){
-    return '<li class="item'+(s.done?' done':'')+'" data-id="'+s.id+'">'+
-      '<button class="chk" type="button" data-act="toggle" aria-label="'+(s.done?'Volver a la lista':'Marcar como comprado')+'">'+CHK+'</button>'+
-      '<div class="txt"><span class="t">'+esc(s.text)+'</span></div>'+
-      (s.qty?'<span class="qty">'+esc(s.qty)+'</span>':'')+
+  var shopPlace=null,moveFor=null,UL={unidad:'un',kilo:'kg',litro:'L'};
+  var STORE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9l1.5-5h13L20 9M4 9h16M5 9v11h14V9M9.5 20v-5h5v5"/></svg>';
+  var MOVE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></svg>';
+  function qtyLabel(x){if(!x.qty)return '';return x.unit?x.qty+' '+(UL[x.unit]||x.unit):x.qty}
+  function shopItem(x){
+    var h='<li class="item'+(x.done?' done':'')+'" data-id="'+x.id+'">'+
+      '<button class="chk" type="button" data-act="toggle" aria-label="'+(x.done?'Volver a la lista':'Marcar como comprado')+'">'+CHK+'</button>'+
+      '<div class="txt"><span class="t">'+esc(x.text)+'</span></div>'+
+      (qtyLabel(x)?'<span class="qty">'+esc(qtyLabel(x))+'</span>':'')+
+      (x.done?'':'<button class="icon-btn" type="button" data-act="move" aria-expanded="'+(moveFor===x.id)+'" aria-label="No lo encontré, pasar a otro lugar">'+MOVE+'</button>')+
       '<button class="icon-btn" type="button" data-act="del" aria-label="Eliminar producto">'+TRASH+'</button></li>';
+    if(moveFor===x.id&&!x.done){
+      h+='<li class="movebox" data-id="'+x.id+'">No lo encontré aquí. Pasar a:<div class="chips">'+
+        state.places.filter(function(p){return p!==shopPlace}).map(function(p){
+          return '<button class="chipbtn" type="button" data-act="moveto" data-to="'+esc(p)+'">'+esc(p)+'</button>';
+        }).join('')+'</div></li>';
+    }
+    return h;
   }
   function renderShop(){
-    var total=state.shop.length,done=state.shop.filter(function(s){return s.done}).length,h='';
-    if(!total){$('#l-shop').innerHTML='<p class="empty">Tu lista de compras está vacía. Agrega productos arriba.</p>';return}
-    h+='<div class="progress"><span>'+(total-done)+' por comprar</span><div class="bar"><i style="width:'+Math.round(done/total*100)+'%"></i></div></div>';
-    CATS.forEach(function(c){
-      var items=state.shop.filter(function(s){return s.cat===c}).sort(function(a,b){return (a.done?1:0)-(b.done?1:0)});
-      if(items.length)h+='<h2 class="grp">'+esc(c)+'<span class="n">'+items.length+'</span></h2><ul class="list">'+items.map(shopItem).join('')+'</ul>';
-    });
-    if(done)h+='<div class="bulk"><button class="btn ghost small" type="button" data-bulk="shop">Quitar comprados</button></div>';
+    if(shopPlace&&state.places.indexOf(shopPlace)<0)shopPlace=null;
+    $('#shop-menu').hidden=!!shopPlace;
+    $('#shop-place').hidden=!shopPlace;
+    if(!shopPlace){
+      $('#l-places').innerHTML=state.places.map(function(p,i){
+        var n=state.shop.filter(function(x){return x.place===p&&!x.done}).length;
+        return '<button class="tile t'+(i%4+1)+'" type="button" data-place="'+esc(p)+'">'+STORE+'<b>'+n+'</b><span>'+esc(p)+'</span></button>';
+      }).join('');
+      return;
+    }
+    $('#place-title').textContent=shopPlace;
+    var its=state.shop.filter(function(x){return x.place===shopPlace});
+    var pend=its.filter(function(x){return !x.done}),done=its.filter(function(x){return x.done}),h='';
+    if(!its.length){
+      h='<p class="empty">No hay nada anotado para '+esc(shopPlace)+'. Escribe arriba qué vas a comprar.</p>'+
+        '<div class="bulk"><button class="btn ghost small" type="button" data-delplace="1">Quitar este lugar</button></div>';
+    }else{
+      h+='<div class="progress"><span>'+pend.length+' por comprar</span><div class="bar"><i style="width:'+Math.round(done.length/its.length*100)+'%"></i></div></div>';
+      if(pend.length)h+='<ul class="list">'+pend.map(shopItem).join('')+'</ul>';
+      if(done.length){
+        h+='<h2 class="grp">Comprados<span class="n">'+done.length+'</span></h2><ul class="list">'+done.map(shopItem).join('')+'</ul>'+
+          '<div class="bulk"><button class="btn ghost small" type="button" data-bulk="shopplace">Quitar comprados</button></div>';
+      }
+    }
     $('#l-shop').innerHTML=h;
   }
 
@@ -593,7 +657,9 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
         state.tasks.push({id:uid(),text:tx.length>140?tx.slice(0,137)+'…':tx,prio:'media',done:false});
         commit();toast('La idea pasó a Tareas',true);
       }
-      else if(act==='toggle'){arr[i].done=!arr[i].done;commit()}
+      else if(act==='toggle'){arr[i].done=!arr[i].done;moveFor=null;commit()}
+      else if(act==='move'){moveFor=(moveFor===arr[i].id?null:arr[i].id);renderShop()}
+      else if(act==='moveto'){snap();arr[i].place=b.dataset.to;moveFor=null;commit();toast('Pasó a '+b.dataset.to,true)}
       else if(act==='del'){snap();var rm=arr.splice(i,1)[0];if(editingNote===rm.id)endEdit();commit();toast('Eliminado: '+short(rm.text||rm.title),true)}
       else if(act==='edit'){
         editingNote=arr[i].id;$('#n-title').value=arr[i].title||'';$('#n-body').value=arr[i].body||'';
@@ -619,8 +685,26 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
   });
   $('#f-shop').addEventListener('submit',function(e){
     e.preventDefault();var t=$('#s-text').value.trim();if(!t){$('#s-text').focus();return}
-    state.shop.push({id:uid(),text:t,qty:$('#s-qty').value.trim(),cat:$('#s-cat').value,done:false});
-    $('#s-text').value='';$('#s-qty').value='';commit();$('#s-text').focus();
+    state.shop.push({id:uid(),text:t,qty:$('#s-qty').value.trim()||'1',unit:$('#s-unit').value,place:shopPlace,done:false});
+    $('#s-text').value='';$('#s-qty').value='1';commit();$('#s-text').focus();
+  });
+  $('#f-place').addEventListener('submit',function(e){
+    e.preventDefault();var n=$('#p-name').value.trim().replace(/\s+/g,' ');if(!n){$('#p-name').focus();return}
+    var low=n.toLowerCase(),ex=null;
+    state.places.forEach(function(p){if(p.toLowerCase()===low)ex=p});
+    if(!ex){state.places.push(n);ex=n}
+    $('#p-name').value='';shopPlace=ex;moveFor=null;commit();
+  });
+  $('#l-places').addEventListener('click',function(e){
+    var b=e.target.closest('[data-place]');if(!b)return;
+    shopPlace=b.dataset.place;moveFor=null;renderShop();window.scrollTo({top:0});
+  });
+  $('#place-back').addEventListener('click',function(){shopPlace=null;moveFor=null;renderShop()});
+  $('#shop-place').addEventListener('click',function(e){
+    if(e.target.closest('[data-delplace]')){
+      snap();state.places=state.places.filter(function(p){return p!==shopPlace});
+      var gone=shopPlace;shopPlace=null;commit();toast('Se quitó '+gone,true);
+    }
   });
   $('#f-note').addEventListener('submit',function(e){
     e.preventDefault();var ti=$('#n-title').value.trim(),bo=$('#n-body').value.trim();
@@ -636,13 +720,18 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
     if(tab){location.hash=tab.dataset.tab;show(tab.dataset.tab);return}
     var bulk=e.target.closest('[data-bulk]');
     if(bulk){
+      if(bulk.dataset.bulk==='shopplace'){
+        snap();var before=state.shop.length;
+        state.shop=state.shop.filter(function(x){return !(x.done&&x.place===shopPlace)});
+        commit();toast('Se quitaron '+(before-state.shop.length)+' comprados',true);return;
+      }
       var k=bulk.dataset.bulk,key=k==='rem'?'rem':k,n;
       snap();n=state[key].filter(function(x){return x.done}).length;
       state[key]=state[key].filter(function(x){return !x.done});
       commit();toast('Se quitaron '+n+(k==='shop'?' comprados':k==='rem'?' recordatorios hechos':' tareas hechas'),true);return;
     }
     if(e.target.closest('[data-clear-example]')){
-      snap();state={example:false,rem:[],tasks:[],shop:[],notes:[],ideas:[]};commit();toast('Ejemplos borrados',true);return;
+      snap();state={example:false,places:PLACES.slice(),rem:[],tasks:[],shop:[],notes:[],ideas:[]};commit();toast('Ejemplos borrados',true);return;
     }
     if(e.target.closest('[data-undo]')){
       if(undoState){state=JSON.parse(undoState);undoState=null;commit();$('#toast').hidden=true}
@@ -855,7 +944,6 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
   }
   place();
 
-  $('#s-cat').innerHTML=CATS.map(function(c){return '<option>'+esc(c)+'</option>'}).join('');
   show(location.hash.slice(1));
   render();
   syncNative();

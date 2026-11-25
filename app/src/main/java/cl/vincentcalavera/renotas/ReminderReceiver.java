@@ -30,6 +30,7 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         Intent open = new Intent(ctx, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        open.putExtra("open_tab", "recordatorios");
         PendingIntent content = PendingIntent.getActivity(ctx, id.hashCode(), open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 

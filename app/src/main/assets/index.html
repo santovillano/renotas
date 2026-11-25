@@ -336,7 +336,7 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
     <button class="icon-btn" type="button" id="fl-close" aria-label="Cerrar ventana"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div class="fl-body" id="fl-body"></div>
-  <div class="fl-foot">
+  <div class="fl-foot" hidden>
     <label for="fl-every">Avisarme cada</label>
     <select id="fl-every">
       <option value="5">5 minutos</option>
@@ -837,7 +837,7 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
     var tasks=state.tasks.filter(function(t){return !t.done}).sort(function(a,b){return PR[a.prio]-PR[b.prio]});
     var shopN=state.shop.filter(function(s){return !s.done}).length;
     var n=rems.length+tasks.length,h='';
-    try{if(window.Android&&Android.setPending)Android.setPending(n,g.venc.length)}catch(e){}
+    try{if(window.Android&&Android.setPending)Android.setPending(rems.length,g.venc.length,tasks.length,shopN)}catch(e){}
     var cnt=$('#fab-cnt');cnt.textContent=n>99?'99+':n;cnt.hidden=!n;
     $('#fl-sub').textContent=n?('Tienes '+n+(n===1?' pendiente':' pendientes')+(g.venc.length?' · '+g.venc.length+(g.venc.length===1?' vencido':' vencidos'):'')):'Todo al día';
     fab.classList.toggle('alert',g.venc.length>0);
@@ -894,6 +894,7 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
   });
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&floatOpen){toggleFloat(false);fab.focus()}});
   window.addEventListener('resize',place);
+  try{if(window.Android)fab.hidden=true}catch(e){}
   window.openPending=function(){location.hash='inicio';show('inicio');toggleFloat(true)};
 
   /* ---------- Campana flotante sobre otras apps (solo en Android) ---------- */
@@ -926,8 +927,7 @@ nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf
   }
   function alertNow(){
     if(!pendingCount())return;
-    lastAlert=Date.now();renderFloat();toggleFloat(true);
-    try{if(navigator.vibrate)navigator.vibrate([200,100,200])}catch(e){}
+    lastAlert=Date.now();
   }
   function checkAlerts(){
     var now=new Date(),fresh=false;

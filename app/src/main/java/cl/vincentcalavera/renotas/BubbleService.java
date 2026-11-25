@@ -13,7 +13,9 @@ import android.content.pm.ServiceInfo;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
@@ -25,12 +27,20 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.WindowManager;
 
-/** Campana flotante que se ve sobre otras apps y la pantalla de inicio del teléfono. */
+import java.util.ArrayList;
+
+/**
+ * Pastilla flotante que se ve sobre otras apps y la pantalla de inicio.
+ * Muestra un icono y un número por cada tipo de pendiente (recordatorios, tareas, compras).
+ * Se esconde mientras Renotas está abierta.
+ */
 public class BubbleService extends Service {
     static final String CHANNEL = "renotas_bubble";
     static final String ACTION_REFRESH = "cl.vincentcalavera.renotas.REFRESH";
     static final String PREFS = "renotas_app";
     static volatile boolean running = false;
+    static volatile boolean appForeground = false;
+    static BubbleService instance;
 
     private WindowManager wm;
     private BubbleView view;
@@ -59,6 +69,15 @@ public class BubbleService extends Service {
         }
     }
 
+    /** Con la app abierta la pastilla se esconde; al salir de la app vuelve a aparecer. */
+    static void setAppForeground(boolean fg) {
+        appForeground = fg;
+        BubbleService s = instance;
+        if (s != null && s.view != null) {
+            s.view.setVisibility(fg ? View.GONE : View.VISIBLE);
+        }
+    }
+
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -71,9 +90,9 @@ public class BubbleService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
+        instance = this;
         if (view == null) addBubble();
-        SharedPreferences sp = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        view.setState(Math.max(0, sp.getInt("pendN", 0)), Math.max(0, sp.getInt("pendOver", 0)));
+        else applyState();
         running = true;
         return START_STICKY;
     }
@@ -102,29 +121,61 @@ public class BubbleService extends Service {
         }
     }
 
+    private int screenW() {
+        return getResources().getDisplayMetrics().widthPixels;
+    }
+
+    private int screenH() {
+        return getResources().getDisplayMetrics().heightPixels;
+    }
+
+    private void loadCounts() {
+        SharedPreferences sp = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        view.setState(Math.max(0, sp.getInt("pRem", 0)), Math.max(0, sp.getInt("pOver", 0)),
+                Math.max(0, sp.getInt("pTask", 0)), Math.max(0, sp.getInt("pShop", 0)));
+    }
+
+    private void placeX() {
+        SharedPreferences sp = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        boolean right = sp.getInt("bubbleSide", 1) == 1;
+        lp.x = right ? screenW() - lp.width : 0;
+    }
+
     private void addBubble() {
         wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         view = new BubbleView(this);
-        int size = view.sizePx();
+        loadCounts();
         int type = Build.VERSION.SDK_INT >= 26
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
-        lp = new WindowManager.LayoutParams(size, size, type,
+        lp = new WindowManager.LayoutParams(view.wPx(), view.hPx(), type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
         SharedPreferences sp = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        int sw = getResources().getDisplayMetrics().widthPixels;
-        int sh = getResources().getDisplayMetrics().heightPixels;
-        lp.x = sp.getInt("bubbleX", sw - size);
-        lp.y = sp.getInt("bubbleY", sh / 3);
+        lp.y = Math.max(0, Math.min(sp.getInt("bubbleY", screenH() / 3), screenH() - lp.height));
+        placeX();
+        view.setVisibility(appForeground ? View.GONE : View.VISIBLE);
         wm.addView(view, lp);
+    }
+
+    private void applyState() {
+        if (view == null || lp == null) return;
+        loadCounts();
+        lp.width = view.wPx();
+        lp.height = view.hPx();
+        if (!view.dragging) placeX();
+        try {
+            wm.updateViewLayout(view, lp);
+        } catch (Exception ignored) {
+        }
     }
 
     @Override
     public void onDestroy() {
         running = false;
+        instance = null;
         if (view != null && wm != null) {
             try {
                 wm.removeView(view);
@@ -135,13 +186,28 @@ public class BubbleService extends Service {
         super.onDestroy();
     }
 
+    private class Seg {
+        Drawable icon;
+        String label;
+        String tab;
+        boolean alert;
+        float x0;
+        float x1;
+    }
+
     private class BubbleView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Drawable bell;
         private final float d;
         private final int slop;
-        private int n = 0;
-        private int over = 0;
+        private final Drawable iBell;
+        private final Drawable iTask;
+        private final Drawable iCart;
+        private final ArrayList<Seg> segs = new ArrayList<Seg>();
+        private float pillW;
+        private float pillH;
+        private int wPx;
+        private int hPx;
+        boolean dragging = false;
         private float downX, downY;
         private int startX, startY;
         private boolean moved;
@@ -149,56 +215,118 @@ public class BubbleService extends Service {
         BubbleView(Context c) {
             super(c);
             d = c.getResources().getDisplayMetrics().density;
-            bell = c.getDrawable(R.drawable.ic_stat_bell);
+            iBell = c.getDrawable(R.drawable.ic_b_bell);
+            iTask = c.getDrawable(R.drawable.ic_b_task);
+            iCart = c.getDrawable(R.drawable.ic_b_cart);
             slop = ViewConfiguration.get(c).getScaledTouchSlop();
             setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
 
-        int sizePx() {
-            return (int) (64 * d);
+        int wPx() {
+            return wPx;
         }
 
-        void setState(int count, int overdue) {
-            n = count;
-            over = overdue;
+        int hPx() {
+            return hPx;
+        }
+
+        private void add(Drawable ic, int n, String tab, boolean alert) {
+            if (n <= 0) return;
+            Seg s = new Seg();
+            s.icon = ic;
+            s.label = n > 99 ? "99+" : String.valueOf(n);
+            s.tab = tab;
+            s.alert = alert;
+            segs.add(s);
+        }
+
+        void setState(int rem, int over, int task, int shop) {
+            segs.clear();
+            add(iBell, rem, "recordatorios", over > 0);
+            add(iTask, task, "tareas", false);
+            add(iCart, shop, "compras", false);
+            pillH = 38 * d;
+            if (segs.isEmpty()) {
+                pillW = pillH;
+            } else {
+                p.setTextSize(13 * d);
+                p.setFakeBoldText(true);
+                float x = 3 * d;
+                for (Seg s : segs) {
+                    float w = 7 * d + 13 * d + 3 * d + p.measureText(s.label) + 7 * d;
+                    s.x0 = x;
+                    s.x1 = x + w;
+                    x += w;
+                }
+                p.setFakeBoldText(false);
+                pillW = x + 3 * d;
+            }
+            wPx = (int) Math.ceil(pillW + 8 * d);
+            hPx = (int) Math.ceil(pillH + 8 * d);
             invalidate();
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
-            float s = getWidth();
-            float r = 26 * d;
-            float cx = s / 2f - 2 * d;
-            float cy = s / 2f + 2 * d;
+            float ox = 4 * d;
+            float oy = 4 * d;
+            boolean none = segs.isEmpty();
+            RectF r = new RectF(ox, oy, ox + pillW, oy + pillH);
 
             p.setStyle(Paint.Style.FILL);
-            p.setShader(new LinearGradient(cx - r, cy - r, cx + r, cy + r,
-                    n > 0 ? 0xFF6C4DF6 : 0xFF1E8E6B,
-                    n > 0 ? 0xFFE8467B : 0xFF2AB58A, Shader.TileMode.CLAMP));
-            p.setShadowLayer(6 * d, 0, 2 * d, 0x55000000);
-            canvas.drawCircle(cx, cy, r, p);
+            p.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom,
+                    none ? 0xFF1E8E6B : 0xFF6C4DF6,
+                    none ? 0xFF2AB58A : 0xFFE8467B, Shader.TileMode.CLAMP));
+            p.setShadowLayer(5 * d, 0, 2 * d, 0x55000000);
+            canvas.drawRoundRect(r, pillH / 2, pillH / 2, p);
             p.setShader(null);
             p.clearShadowLayer();
 
-            int b = (int) (14 * d);
-            bell.setBounds((int) (cx - b), (int) (cy - b), (int) (cx + b), (int) (cy + b));
-            bell.draw(canvas);
-
-            if (n > 0) {
-                float br = 10 * d;
-                float bx = cx + r * 0.72f;
-                float by = cy - r * 0.72f;
+            if (none) {
+                float cx = ox + pillW / 2;
+                float cy = oy + pillH / 2;
+                Path check = new Path();
+                check.moveTo(cx - 6 * d, cy);
+                check.lineTo(cx - 1.5f * d, cy + 4.5f * d);
+                check.lineTo(cx + 6.5f * d, cy - 5 * d);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(2.6f * d);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                p.setStrokeJoin(Paint.Join.ROUND);
                 p.setColor(0xFFFFFFFF);
-                canvas.drawCircle(bx, by, br + 1.5f * d, p);
-                p.setColor(over > 0 ? 0xFFD7263D : 0xFFE8467B);
-                canvas.drawCircle(bx, by, br, p);
-                p.setColor(0xFFFFFFFF);
-                p.setTextAlign(Paint.Align.CENTER);
-                p.setTextSize((n > 99 ? 9 : 11) * d);
-                p.setFakeBoldText(true);
-                canvas.drawText(n > 99 ? "99+" : String.valueOf(n), bx, by + 4 * d, p);
-                p.setFakeBoldText(false);
+                canvas.drawPath(check, p);
+                p.setStyle(Paint.Style.FILL);
+                p.setStrokeWidth(0);
+                return;
             }
+
+            p.setTextSize(13 * d);
+            p.setFakeBoldText(true);
+            p.setTextAlign(Paint.Align.LEFT);
+            for (Seg s : segs) {
+                float x0 = ox + s.x0;
+                float x1 = ox + s.x1;
+                if (s.alert) {
+                    float h = pillH - 8 * d;
+                    p.setColor(0xFFD7263D);
+                    canvas.drawRoundRect(new RectF(x0, oy + 4 * d, x1, oy + 4 * d + h), h / 2, h / 2, p);
+                }
+                int ix = (int) (x0 + 7 * d);
+                int iy = (int) (oy + pillH / 2 - 6.5f * d);
+                s.icon.setBounds(ix, iy, (int) (ix + 13 * d), (int) (iy + 13 * d));
+                s.icon.draw(canvas);
+                p.setColor(0xFFFFFFFF);
+                canvas.drawText(s.label, x0 + 7 * d + 13 * d + 3 * d, oy + pillH / 2 + 4.6f * d, p);
+            }
+            p.setFakeBoldText(false);
+        }
+
+        private String tabAt(float x) {
+            float px = x - 4 * d;
+            for (Seg s : segs) {
+                if (px >= s.x0 && px <= s.x1) return s.tab;
+            }
+            return "inicio";
         }
 
         @Override
@@ -214,7 +342,10 @@ public class BubbleService extends Service {
                 case MotionEvent.ACTION_MOVE: {
                     float mx = e.getRawX() - downX;
                     float my = e.getRawY() - downY;
-                    if (!moved && Math.hypot(mx, my) > slop) moved = true;
+                    if (!moved && Math.hypot(mx, my) > slop) {
+                        moved = true;
+                        dragging = true;
+                    }
                     if (moved) {
                         lp.x = (int) (startX + mx);
                         lp.y = (int) (startY + my);
@@ -224,29 +355,33 @@ public class BubbleService extends Service {
                 }
                 case MotionEvent.ACTION_UP:
                     if (moved) snap();
-                    else openApp();
+                    else openApp(tabAt(e.getX()));
+                    dragging = false;
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    dragging = false;
                     return true;
                 default:
                     return super.onTouchEvent(e);
             }
         }
 
-        private void openApp() {
+        private void openApp(String tab) {
             Intent i = new Intent(BubbleService.this, MainActivity.class);
             i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            i.putExtra("open_pending", true);
+            i.putExtra("open_tab", tab);
             try {
-                startActivity(i);
+                BubbleService.this.startActivity(i);
             } catch (Exception ignored) {
             }
         }
 
         private void snap() {
-            int sw = getResources().getDisplayMetrics().widthPixels;
-            int sh = getResources().getDisplayMetrics().heightPixels;
-            final int size = sizePx();
-            int target = (lp.x + size / 2 < sw / 2) ? 0 : sw - size;
-            lp.y = Math.max(0, Math.min(lp.y, sh - size));
+            int sw = screenW();
+            int sh = screenH();
+            final boolean right = (lp.x + lp.width / 2) >= sw / 2;
+            int target = right ? sw - lp.width : 0;
+            lp.y = Math.max(0, Math.min(lp.y, sh - lp.height));
             ValueAnimator a = ValueAnimator.ofInt(lp.x, target);
             a.setDuration(180);
             a.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
@@ -260,8 +395,8 @@ public class BubbleService extends Service {
                 }
             });
             a.start();
-            getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                    .putInt("bubbleX", target).putInt("bubbleY", lp.y).apply();
+            BubbleService.this.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                    .putInt("bubbleSide", right ? 1 : 0).putInt("bubbleY", lp.y).apply();
         }
     }
 }

@@ -64,7 +64,9 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
-        web.loadUrl("file:///android_asset/index.html");
+        String tab = getIntent() != null ? getIntent().getStringExtra("open_tab") : null;
+        web.loadUrl("file:///android_asset/index.html"
+                + (tab != null && tab.matches("[a-z]+") ? "#" + tab : ""));
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -115,10 +117,12 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void setPending(int n, int over) {
+        public void setPending(int rem, int over, int task, int shop) {
             SharedPreferences sp = getSharedPreferences("renotas_app", Context.MODE_PRIVATE);
-            if (sp.getInt("pendN", -1) == n && sp.getInt("pendOver", -1) == over) return;
-            sp.edit().putInt("pendN", n).putInt("pendOver", over).apply();
+            if (sp.getInt("pRem", -1) == rem && sp.getInt("pOver", -1) == over
+                    && sp.getInt("pTask", -1) == task && sp.getInt("pShop", -1) == shop) return;
+            sp.edit().putInt("pRem", rem).putInt("pOver", over)
+                    .putInt("pTask", task).putInt("pShop", shop).apply();
             BubbleService.refresh(getApplicationContext());
         }
 
@@ -172,6 +176,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        BubbleService.setAppForeground(true);
         boolean on = getSharedPreferences("renotas_app", Context.MODE_PRIVATE)
                 .getBoolean("bubbleEnabled", false);
         if (on && Settings.canDrawOverlays(this) && !BubbleService.running) {
@@ -184,8 +189,9 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (intent != null && intent.getBooleanExtra("open_pending", false)) {
-            js("window.openPending&&window.openPending()");
+        String tab = intent != null ? intent.getStringExtra("open_tab") : null;
+        if (tab != null && tab.matches("[a-z]+")) {
+            js("location.hash='" + tab + "'");
         }
     }
 
@@ -298,6 +304,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        BubbleService.setAppForeground(false);
         if (wantListening) {
             wantListening = false;
             if (recognizer != null) recognizer.cancel();
